@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">MObile-midterm</string>
+    <string name="title_book_a_room">Book a Room</string>
+    <string name="label_name">Name:</string>
+    <string name="label_date">Date:</string>
+    <string name="label_room">Room:</string>
+    <string name="hint_name">Enter Your Name</string>
+    <string name="hint_date">Ex. 25-08-2568</string>
+    <string name="hint_room">Enter Room Name</string>
+    <string name="btn_book">Book</string>
+    <string name="title_booking_confirmed">Booking\nConfirmed!</string>
+    <string name="from_text">From %1$s</string>
+</resources>
