@@ -44,10 +44,9 @@ fun BookingScreen() {
             .fillMaxSize()
             .background(Color(0xFFFFFDF5)) // Even lighter cream, almost white-cream
             .padding(16.dp), // 16dp margin as per arrow
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center // จัดให้อยู่กึ่งกลางหน้าจอเพื่อไม่ให้ด้านล่างโล่ง
     ) {
-        Spacer(modifier = Modifier.height(60.dp))
-        
         Text(
             text = stringResource(id = R.string.title_book_a_room),
             fontSize = 36.sp,
