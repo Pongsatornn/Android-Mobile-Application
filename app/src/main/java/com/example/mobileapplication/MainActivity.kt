@@ -167,7 +167,7 @@ fun HomeScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            painter = painterResource(id = R.drawable.my_profile),
                             contentDescription = "Profile Picture",
                             modifier = Modifier
                                 .size(110.dp)
@@ -369,7 +369,7 @@ fun DetailScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         Image(
-                            painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                            painter = painterResource(id = R.drawable.my_profile),
                             contentDescription = "Detail Profile Picture",
                             modifier = Modifier
                                 .size(80.dp)
@@ -381,7 +381,7 @@ fun DetailScreen(
 
                     Column {
                         Text(
-                            text ="POngsatorn Yingsabay" ,
+                            text ="Pongsatorn Yingsabay",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
                             color = Color(0xFF2C3E50)
