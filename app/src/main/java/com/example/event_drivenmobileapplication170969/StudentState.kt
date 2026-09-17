@@ -36,11 +36,25 @@ class StudentState {
     val profileProgress: Float
         get() {
             var done = 0
+            var total = 0
+
+            // 1. ตรวจสอบชื่อ
+            total++
             if (name.isNotBlank()) done++
-            if (studentId.length == 10) done++
+
+            // 2. ตรวจสอบรหัสนักศึกษา (กรอกอะไรมาก็ได้ ขอแค่ไม่ว่าง)
+            total++
+            if (studentId.isNotBlank()) done++
+
+            // 3. ตรวจสอบว่ามีการเลือกทักษะอย่างน้อย 1 อย่างไหม
+            total++
             if (skills.isNotEmpty()) done++
-            if (interestLevel > 0f) done++
-            return done / 4f
+
+            // 4. ตรวจสอบการเลือกรูปภาพโปรไฟล์ (ไม่ว่าจะจาก drawable หรือจาก uri)
+            total++
+            if (selectedDrawableResId != null || imageUriString != null) done++
+
+            return done.toFloat() / total.toFloat()
         }
 
     fun reset() {
