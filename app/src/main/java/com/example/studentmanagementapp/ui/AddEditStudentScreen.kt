@@ -6,12 +6,12 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.studentmanagementapp.model.Student
+import com.example.studentmanagementapp.data.local.StudentEntity
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddEditStudentScreen(
-    student: Student?,                                   // null = Add, มีค่า = Edit
+    student: StudentEntity?,                                   // null = Add, มีค่า = Edit
     onSave: (code: String, name: String, major: String) -> Unit,
     onBack: () -> Unit
 ) {

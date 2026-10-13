@@ -4,11 +4,10 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
-import com.example.studentmanagementapp.model.Student
 
 @Database(
-    entities = [Student::class],
-    version = 1,
+    entities = [StudentEntity::class],
+    version = 2,     // Lab 4: เพิ่ม serverId / syncStatus / updatedAt
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -26,7 +25,10 @@ abstract class AppDatabase : RoomDatabase() {
                     context.applicationContext,
                     AppDatabase::class.java,
                     "student_db"
-                ).build().also { INSTANCE = it }
+                )
+                    // เปลี่ยนโครงสร้างตาราง -> ล้าง Room แล้วโหลดจาก Server ใหม่ (Room เป็นแค่ cache)
+                    .fallbackToDestructiveMigration(dropAllTables = true)
+                    .build().also { INSTANCE = it }
             }
     }
 }

@@ -9,7 +9,7 @@ import com.example.studentmanagementapp.viewmodel.StudentViewModel
 sealed interface Screen {
     data object List : Screen
     data object Add : Screen
-    data class Detail(val id: Int) : Screen
+    data class Detail(val id: Int) : Screen   // id = localId ใน Room
     data class Edit(val id: Int) : Screen
 }
 
@@ -19,6 +19,10 @@ fun StudentApp(
     viewModel: StudentViewModel = viewModel(factory = StudentViewModel.Factory)
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
+
+    // Lab 4: สังเกตรายชื่อจาก Room
+    val students by viewModel.students.collectAsState()
+    fun findStudent(localId: Int) = students.find { it.localId == localId }
 
     // โหลดทุกครั้งที่เข้าหน้านี้ (รวมถึงหลัง Login ใหม่)
     LaunchedEffect(Unit) { viewModel.loadStudents() }
@@ -36,7 +40,8 @@ fun StudentApp(
     when (val s = screen) {
         Screen.List -> StudentListScreen(
             viewModel = viewModel,
-            onStudentClick = { screen = Screen.Detail(it.id) },
+            students = students,
+            onStudentClick = { screen = Screen.Detail(it.localId) },
             onAddClick = { screen = Screen.Add },
             onLogout = onLogout
         )
@@ -51,14 +56,14 @@ fun StudentApp(
         )
 
         is Screen.Detail -> {
-            val student = viewModel.getStudent(s.id)
+            val student = findStudent(s.id)
             if (student == null) {
                 LaunchedEffect(Unit) { screen = Screen.List }
             } else {
                 StudentDetailScreen(
                     student = student,
                     onBack = { screen = Screen.List },
-                    onEdit = { screen = Screen.Edit(student.id) },
+                    onEdit = { screen = Screen.Edit(student.localId) },
                     onDelete = {
                         viewModel.deleteStudent(student)
                         screen = Screen.List
@@ -68,17 +73,17 @@ fun StudentApp(
         }
 
         is Screen.Edit -> {
-            val student = viewModel.getStudent(s.id)
+            val student = findStudent(s.id)
             if (student == null) {
                 LaunchedEffect(Unit) { screen = Screen.List }
             } else {
                 AddEditStudentScreen(
                     student = student,
                     onSave = { code, name, major ->
-                        viewModel.saveStudent(student.id, code, name, major)
-                        screen = Screen.Detail(student.id)
+                        viewModel.saveStudent(student, code, name, major)
+                        screen = Screen.Detail(student.localId)
                     },
-                    onBack = { screen = Screen.Detail(student.id) }
+                    onBack = { screen = Screen.Detail(student.localId) }
                 )
             }
         }

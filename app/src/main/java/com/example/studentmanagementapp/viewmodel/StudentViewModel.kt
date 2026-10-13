@@ -9,8 +9,12 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
 import com.example.studentmanagementapp.StudentManagementApplication
+import com.example.studentmanagementapp.data.local.StudentEntity
+import com.example.studentmanagementapp.data.local.SyncStatus
 import com.example.studentmanagementapp.data.repository.StudentRepository
-import com.example.studentmanagementapp.model.Student
+import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
 
@@ -19,13 +23,26 @@ class StudentViewModel(
 ) : ViewModel() {
 
     // ---------- State ----------
-    var students by mutableStateOf(listOf<Student>())
-        private set
+
+    // Lab 4: รายชื่อมาจาก Room ผ่าน Flow (อัปเดตเองเมื่อ Room เปลี่ยน แม้ออฟไลน์)
+    val students: StateFlow<List<StudentEntity>> =
+        repository.observeStudents()
+            .stateIn(
+                scope = viewModelScope,
+                started = SharingStarted.WhileSubscribed(5000),
+                initialValue = emptyList()
+            )
 
     var isLoading by mutableStateOf(false)
         private set
 
+    var isSyncing by mutableStateOf(false)
+        private set
+
     var errorMessage by mutableStateOf<String?>(null)
+        private set
+
+    var syncMessage by mutableStateOf<String?>(null)
         private set
 
     var isOnline by mutableStateOf(false)      // Exercise 4
@@ -38,30 +55,26 @@ class StudentViewModel(
     var sessionExpired by mutableStateOf(false)
         private set
 
-    // รายการที่กรองแล้ว (ค้นจาก code / name / major)
-    val filteredStudents: List<Student>
-        get() {
-            val q = searchQuery.trim()
-            if (q.isEmpty()) return students
-            return students.filter {
-                it.studentCode.contains(q, ignoreCase = true) ||
-                    it.name.contains(q, ignoreCase = true) ||
-                    it.major.contains(q, ignoreCase = true)
-            }
+    // กรองรายการ (ค้นจาก code / name / major)
+    fun filter(list: List<StudentEntity>): List<StudentEntity> {
+        val q = searchQuery.trim()
+        if (q.isEmpty()) return list
+        return list.filter {
+            it.studentCode.contains(q, ignoreCase = true) ||
+                it.name.contains(q, ignoreCase = true) ||
+                it.major.contains(q, ignoreCase = true)
         }
+    }
 
     // ---------- Events ----------
+
+    // GET /students -> อัปเดต Room (ถ้าออฟไลน์ หน้าจอยังแสดงข้อมูลใน Room ตามเดิม)
     fun loadStudents() {
         viewModelScope.launch {
             isLoading = true
             errorMessage = null
             try {
-                val result = repository.getStudents()
-                students = result.students
-                isOnline = result.isOnline
-                if (!result.isOnline && result.students.isEmpty()) {
-                    errorMessage = "ออฟไลน์อยู่ และยังไม่มีข้อมูลในเครื่อง"
-                }
+                isOnline = repository.refresh()
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
                 errorMessage = "ไม่สามารถโหลดข้อมูลได้"
@@ -75,31 +88,29 @@ class StudentViewModel(
         searchQuery = query
     }
 
-    // id = null -> POST /students, มี id -> PUT /students/{id}
-    fun saveStudent(id: Int?, code: String, name: String, major: String) {
+    // Add -> ลง Room เป็น PENDING ทันที (ทำได้แม้ออฟไลน์)
+    // Edit -> ดูใน Repository ว่าต้องออนไลน์หรือไม่
+    fun saveStudent(student: StudentEntity?, code: String, name: String, major: String) {
         viewModelScope.launch {
             errorMessage = null
             try {
-                if (id == null) {
+                if (student == null) {
                     repository.addStudent(code.trim(), name.trim(), major.trim())
                 } else {
-                    repository.updateStudent(id, code.trim(), name.trim(), major.trim())
+                    repository.updateStudent(student, code.trim(), name.trim(), major.trim())
                 }
-                loadStudents()
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
-                errorMessage = "บันทึกข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
+                errorMessage = "แก้ไขข้อมูลที่ Sync แล้วต้องเชื่อมต่อ Server"
             }
         }
     }
 
-    // DELETE /students/{id}
-    fun deleteStudent(student: Student) {
+    fun deleteStudent(student: StudentEntity) {
         viewModelScope.launch {
             errorMessage = null
             try {
                 repository.deleteStudent(student)
-                loadStudents()
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
                 errorMessage = "ลบข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
@@ -107,7 +118,35 @@ class StudentViewModel(
         }
     }
 
-    fun getStudent(id: Int): Student? = students.find { it.id == id }
+    // Sync Now: ส่ง PENDING ขึ้น Server แล้วดึงข้อมูลล่าสุดกลับมา
+    fun syncStudents() {
+        viewModelScope.launch {
+            isSyncing = true
+            errorMessage = null
+            syncMessage = null
+            try {
+                val result = repository.syncPending()
+                isOnline = result.isOnline
+                if (result.isOnline) {
+                    isOnline = repository.refresh()
+                }
+                syncMessage = when {
+                    !result.isOnline -> "ออฟไลน์อยู่ ข้อมูลยังเป็น PENDING ลองใหม่เมื่อมีเน็ต"
+                    result.failed > 0 -> "Sync สำเร็จ ${result.synced} รายการ, ล้มเหลว ${result.failed} รายการ"
+                    result.synced > 0 -> "Sync สำเร็จ ${result.synced} รายการ"
+                    else -> "ไม่มีข้อมูลที่ต้อง Sync"
+                }
+            } catch (e: Exception) {
+                if (isUnauthorized(e)) return@launch
+                errorMessage = "Sync ไม่สำเร็จ"
+            } finally {
+                isSyncing = false
+            }
+        }
+    }
+
+    fun pendingCount(list: List<StudentEntity>): Int =
+        list.count { it.syncStatus != SyncStatus.SYNCED }
 
     fun onSessionExpiredHandled() {
         sessionExpired = false

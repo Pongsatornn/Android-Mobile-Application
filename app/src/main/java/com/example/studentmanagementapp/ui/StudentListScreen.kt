@@ -10,14 +10,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.studentmanagementapp.model.Student
+import com.example.studentmanagementapp.data.local.StudentEntity
+import com.example.studentmanagementapp.data.local.SyncStatus
 import com.example.studentmanagementapp.viewmodel.StudentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentListScreen(
     viewModel: StudentViewModel,
-    onStudentClick: (Student) -> Unit,
+    students: List<StudentEntity>,
+    onStudentClick: (StudentEntity) -> Unit,
     onAddClick: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -54,18 +56,37 @@ fun StudentListScreen(
             )
             Spacer(Modifier.height(8.dp))
 
+            // Lab 4: ส่งรายการ PENDING / FAILED ขึ้น Server
+            val pending = viewModel.pendingCount(students)
+            Button(
+                onClick = viewModel::syncStudents,
+                enabled = !viewModel.isSyncing,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    if (viewModel.isSyncing) "กำลัง Sync..."
+                    else "Sync Now ($pending pending)"
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+
+            viewModel.syncMessage?.let {
+                Text(text = it, style = MaterialTheme.typography.bodyMedium)
+                Spacer(Modifier.height(8.dp))
+            }
+
             viewModel.errorMessage?.let {
                 Text(text = it, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
             }
 
-            if (viewModel.isLoading) {
+            if (viewModel.isLoading && students.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     CircularProgressIndicator()
                 }
             } else {
                 StudentList(
-                    students = viewModel.filteredStudents,
+                    students = viewModel.filter(students),
                     onStudentClick = onStudentClick,
                     onDeleteClick = viewModel::deleteStudent
                 )
@@ -85,9 +106,9 @@ fun OnlineStatus(isOnline: Boolean) {
 
 @Composable
 fun StudentList(
-    students: List<Student>,
-    onStudentClick: (Student) -> Unit,
-    onDeleteClick: (Student) -> Unit
+    students: List<StudentEntity>,
+    onStudentClick: (StudentEntity) -> Unit,
+    onDeleteClick: (StudentEntity) -> Unit
 ) {
     if (students.isEmpty()) {
         Text("ไม่พบข้อมูลนักศึกษา")
@@ -97,7 +118,7 @@ fun StudentList(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 88.dp)   // เว้นที่ให้ปุ่ม +
     ) {
-        items(students, key = { it.id }) { student ->
+        items(students, key = { it.localId }) { student ->
             StudentItem(
                 student = student,
                 onClick = { onStudentClick(student) },
@@ -108,7 +129,7 @@ fun StudentList(
 }
 
 @Composable
-fun StudentItem(student: Student, onClick: () -> Unit, onDelete: () -> Unit) {
+fun StudentItem(student: StudentEntity, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -126,10 +147,21 @@ fun StudentItem(student: Student, onClick: () -> Unit, onDelete: () -> Unit) {
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(student.major, style = MaterialTheme.typography.bodyMedium)
+                SyncStatusText(student.syncStatus)
             }
             TextButton(onClick = onDelete) {
                 Text("Delete", color = MaterialTheme.colorScheme.error)
             }
         }
     }
+}
+
+@Composable
+fun SyncStatusText(status: String) {
+    val color = when (status) {
+        SyncStatus.SYNCED -> Color(0xFF2E7D32)
+        SyncStatus.FAILED -> MaterialTheme.colorScheme.error
+        else -> Color(0xFFEF6C00)   // PENDING
+    }
+    Text("Sync: $status", color = color, style = MaterialTheme.typography.labelMedium)
 }
