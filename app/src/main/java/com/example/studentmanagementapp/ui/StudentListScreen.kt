@@ -18,7 +18,8 @@ import com.example.studentmanagementapp.viewmodel.StudentViewModel
 fun StudentListScreen(
     viewModel: StudentViewModel,
     onStudentClick: (Student) -> Unit,
-    onAddClick: () -> Unit
+    onAddClick: () -> Unit,
+    onLogout: () -> Unit
 ) {
     Scaffold(
         topBar = {
@@ -28,6 +29,7 @@ fun StudentListScreen(
                     OnlineStatus(isOnline = viewModel.isOnline)
                     // Exercise 2: Refresh -> GET /students
                     TextButton(onClick = viewModel::loadStudents) { Text("Refresh") }
+                    TextButton(onClick = onLogout) { Text("Logout") }
                 }
             )
         },

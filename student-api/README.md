@@ -1,6 +1,6 @@
 # Student Management API
 
-FastAPI + PostgreSQL backend สำหรับ StudentManagementApp (Lab 2)
+FastAPI + PostgreSQL backend สำหรับ StudentManagementApp (Lab 2 + Lab 3 Authentication/JWT)
 
 ## 1. เตรียม Database
 
@@ -40,8 +40,14 @@ set DATABASE_URL=postgresql+psycopg2://postgres:<password>@localhost:5432/studen
 ## 3. ทดสอบ
 Swagger UI: http://127.0.0.1:8000/docs
 
+ผู้ใช้ทดสอบ (สร้างอัตโนมัติตอนเปิด Server): **admin / admin123**
+
+ทุก endpoint `/students` ต้องแนบ `Authorization: Bearer <token>` ไม่งั้นได้ 401
+ใน Swagger กดปุ่ม **Authorize** แล้วใส่ username/password ได้เลย
+
 | HTTP   | Endpoint         | หน้าที่              |
 |--------|------------------|---------------------|
+| POST   | /token           | Login (Form: username, password) ได้ JWT |
 | GET    | /students        | อ่านข้อมูลทั้งหมด     |
 | GET    | /students/{id}   | อ่านข้อมูลหนึ่งคน     |
 | POST   | /students        | เพิ่มข้อมูล           |

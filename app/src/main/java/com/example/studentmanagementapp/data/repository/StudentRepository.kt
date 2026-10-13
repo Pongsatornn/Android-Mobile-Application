@@ -5,6 +5,7 @@ import com.example.studentmanagementapp.data.remote.StudentApi
 import com.example.studentmanagementapp.data.remote.StudentCreateRequest
 import com.example.studentmanagementapp.data.remote.toStudent
 import com.example.studentmanagementapp.model.Student
+import retrofit2.HttpException
 
 // ผลลัพธ์ที่บอกด้วยว่าได้ข้อมูลจาก API สำเร็จไหม (ใช้ทำ Online/Offline)
 data class StudentResult(
@@ -25,6 +26,10 @@ class StudentRepository(
             val remote = api.getStudents().map { it.toStudent() }
             dao.replaceAll(remote)
             StudentResult(dao.getAllStudents(), isOnline = true)
+        } catch (e: HttpException) {
+            // 401 = Token หมดอายุ/ไม่ถูกต้อง ต้อง Login ใหม่ ไม่ใช่ออฟไลน์
+            if (e.code() == 401) throw e
+            StudentResult(dao.getAllStudents(), isOnline = false)
         } catch (e: Exception) {
             StudentResult(dao.getAllStudents(), isOnline = false)
         }

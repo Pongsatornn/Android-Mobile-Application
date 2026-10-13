@@ -22,3 +22,22 @@ class Student(Base):
         String(100),
         nullable=False
     )
+
+
+class User(Base):
+
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    username = Column(
+        String(50),
+        unique=True,
+        nullable=False
+    )
+
+    # เก็บเฉพาะ hash ของรหัสผ่าน
+    hashed_password = Column(
+        String(200),
+        nullable=False
+    )

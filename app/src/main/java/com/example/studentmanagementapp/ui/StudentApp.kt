@@ -15,9 +15,21 @@ sealed interface Screen {
 
 @Composable
 fun StudentApp(
+    onLogout: () -> Unit,
     viewModel: StudentViewModel = viewModel(factory = StudentViewModel.Factory)
 ) {
     var screen by remember { mutableStateOf<Screen>(Screen.List) }
+
+    // โหลดทุกครั้งที่เข้าหน้านี้ (รวมถึงหลัง Login ใหม่)
+    LaunchedEffect(Unit) { viewModel.loadStudents() }
+
+    // Token หมดอายุ -> กลับไป Login
+    LaunchedEffect(viewModel.sessionExpired) {
+        if (viewModel.sessionExpired) {
+            viewModel.onSessionExpiredHandled()
+            onLogout()
+        }
+    }
 
     BackHandler(enabled = screen != Screen.List) { screen = Screen.List }
 
@@ -25,7 +37,8 @@ fun StudentApp(
         Screen.List -> StudentListScreen(
             viewModel = viewModel,
             onStudentClick = { screen = Screen.Detail(it.id) },
-            onAddClick = { screen = Screen.Add }
+            onAddClick = { screen = Screen.Add },
+            onLogout = onLogout
         )
 
         Screen.Add -> AddEditStudentScreen(

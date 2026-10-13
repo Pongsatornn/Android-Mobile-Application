@@ -8,11 +8,11 @@ import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.AP
 import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.initializer
 import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.studentmanagementapp.data.local.AppDatabase
-import com.example.studentmanagementapp.data.remote.RetrofitClient
+import com.example.studentmanagementapp.StudentManagementApplication
 import com.example.studentmanagementapp.data.repository.StudentRepository
 import com.example.studentmanagementapp.model.Student
 import kotlinx.coroutines.launch
+import retrofit2.HttpException
 
 class StudentViewModel(
     private val repository: StudentRepository
@@ -34,6 +34,10 @@ class StudentViewModel(
     var searchQuery by mutableStateOf("")      // Exercise 3
         private set
 
+    // Lab 3: Server ตอบ 401 -> Token ใช้ไม่ได้แล้ว ต้องกลับไปหน้า Login
+    var sessionExpired by mutableStateOf(false)
+        private set
+
     // รายการที่กรองแล้ว (ค้นจาก code / name / major)
     val filteredStudents: List<Student>
         get() {
@@ -45,10 +49,6 @@ class StudentViewModel(
                     it.major.contains(q, ignoreCase = true)
             }
         }
-
-    init {
-        loadStudents()
-    }
 
     // ---------- Events ----------
     fun loadStudents() {
@@ -63,6 +63,7 @@ class StudentViewModel(
                     errorMessage = "ออฟไลน์อยู่ และยังไม่มีข้อมูลในเครื่อง"
                 }
             } catch (e: Exception) {
+                if (isUnauthorized(e)) return@launch
                 errorMessage = "ไม่สามารถโหลดข้อมูลได้"
             } finally {
                 isLoading = false
@@ -86,6 +87,7 @@ class StudentViewModel(
                 }
                 loadStudents()
             } catch (e: Exception) {
+                if (isUnauthorized(e)) return@launch
                 errorMessage = "บันทึกข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
             }
         }
@@ -99,6 +101,7 @@ class StudentViewModel(
                 repository.deleteStudent(student)
                 loadStudents()
             } catch (e: Exception) {
+                if (isUnauthorized(e)) return@launch
                 errorMessage = "ลบข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
             }
         }
@@ -106,15 +109,24 @@ class StudentViewModel(
 
     fun getStudent(id: Int): Student? = students.find { it.id == id }
 
+    fun onSessionExpiredHandled() {
+        sessionExpired = false
+    }
+
+    private fun isUnauthorized(e: Exception): Boolean {
+        if (e is HttpException && e.code() == 401) {
+            sessionExpired = true
+            return true
+        }
+        return false
+    }
+
     // ViewModel มี constructor parameter -> ต้องมี Factory บอกวิธีสร้าง
     companion object {
         val Factory = viewModelFactory {
             initializer {
-                val app = checkNotNull(this[APPLICATION_KEY])
-                val db = AppDatabase.getInstance(app)
-                StudentViewModel(
-                    StudentRepository(db.studentDao(), RetrofitClient.api)
-                )
+                val app = checkNotNull(this[APPLICATION_KEY]) as StudentManagementApplication
+                StudentViewModel(app.container.studentRepository)
             }
         }
     }
