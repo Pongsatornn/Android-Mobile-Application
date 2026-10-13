@@ -6,20 +6,23 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.work.WorkInfo
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.example.studentmanagementapp.data.local.StudentEntity
-import com.example.studentmanagementapp.data.local.SyncStatus
+import com.example.studentmanagementapp.domain.model.Student
+import com.example.studentmanagementapp.domain.model.SyncState
 import com.example.studentmanagementapp.viewmodel.StudentViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentListScreen(
     viewModel: StudentViewModel,
-    students: List<StudentEntity>,
-    onStudentClick: (StudentEntity) -> Unit,
+    students: List<Student>,
+    onStudentClick: (Student) -> Unit,
     onAddClick: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -56,18 +59,27 @@ fun StudentListScreen(
             )
             Spacer(Modifier.height(8.dp))
 
-            // Lab 4: ส่งรายการ PENDING / FAILED ขึ้น Server
+            // Lab 4: Sync Now = เรียก Repository ตรง
+            // Lab 5: Sync in Background = ส่งงานให้ WorkManager
             val pending = viewModel.pendingCount(students)
-            Button(
-                onClick = viewModel::syncStudents,
-                enabled = !viewModel.isSyncing,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    if (viewModel.isSyncing) "กำลัง Sync..."
-                    else "Sync Now ($pending pending)"
-                )
+            val backgroundSync by viewModel.backgroundSync.collectAsState()
+            Text("$pending pending", style = MaterialTheme.typography.labelLarge)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Button(
+                    onClick = viewModel::syncStudents,
+                    enabled = !viewModel.isSyncing,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(if (viewModel.isSyncing) "กำลัง Sync..." else "Sync Now")
+                }
+                OutlinedButton(
+                    onClick = viewModel::syncInBackground,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text("Sync in Background")
+                }
             }
+            BackgroundSyncStatus(backgroundSync)
             Spacer(Modifier.height(8.dp))
 
             viewModel.syncMessage?.let {
@@ -106,9 +118,9 @@ fun OnlineStatus(isOnline: Boolean) {
 
 @Composable
 fun StudentList(
-    students: List<StudentEntity>,
-    onStudentClick: (StudentEntity) -> Unit,
-    onDeleteClick: (StudentEntity) -> Unit
+    students: List<Student>,
+    onStudentClick: (Student) -> Unit,
+    onDeleteClick: (Student) -> Unit
 ) {
     if (students.isEmpty()) {
         Text("ไม่พบข้อมูลนักศึกษา")
@@ -118,7 +130,7 @@ fun StudentList(
         verticalArrangement = Arrangement.spacedBy(8.dp),
         contentPadding = PaddingValues(bottom = 88.dp)   // เว้นที่ให้ปุ่ม +
     ) {
-        items(students, key = { it.localId }) { student ->
+        items(students, key = { it.id }) { student ->
             StudentItem(
                 student = student,
                 onClick = { onStudentClick(student) },
@@ -129,7 +141,7 @@ fun StudentList(
 }
 
 @Composable
-fun StudentItem(student: StudentEntity, onClick: () -> Unit, onDelete: () -> Unit) {
+fun StudentItem(student: Student, onClick: () -> Unit, onDelete: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -147,7 +159,7 @@ fun StudentItem(student: StudentEntity, onClick: () -> Unit, onDelete: () -> Uni
                     style = MaterialTheme.typography.titleMedium
                 )
                 Text(student.major, style = MaterialTheme.typography.bodyMedium)
-                SyncStatusText(student.syncStatus)
+                SyncStatusText(student.syncState)
             }
             TextButton(onClick = onDelete) {
                 Text("Delete", color = MaterialTheme.colorScheme.error)
@@ -157,11 +169,23 @@ fun StudentItem(student: StudentEntity, onClick: () -> Unit, onDelete: () -> Uni
 }
 
 @Composable
-fun SyncStatusText(status: String) {
+fun SyncStatusText(status: SyncState) {
     val color = when (status) {
-        SyncStatus.SYNCED -> Color(0xFF2E7D32)
-        SyncStatus.FAILED -> MaterialTheme.colorScheme.error
-        else -> Color(0xFFEF6C00)   // PENDING
+        SyncState.SYNCED -> Color(0xFF2E7D32)
+        SyncState.FAILED -> MaterialTheme.colorScheme.error
+        SyncState.PENDING -> Color(0xFFEF6C00)
     }
     Text("Sync: $status", color = color, style = MaterialTheme.typography.labelMedium)
+}
+
+@Composable
+fun BackgroundSyncStatus(state: WorkInfo.State?) {
+    val text = when (state) {
+        WorkInfo.State.ENQUEUED -> "Background: รอ Network..."
+        WorkInfo.State.RUNNING -> "Background: กำลัง Sync..."
+        WorkInfo.State.SUCCEEDED -> "Background: Sync สำเร็จ"
+        WorkInfo.State.FAILED -> "Background: Sync ล้มเหลว"
+        else -> return
+    }
+    Text(text, style = MaterialTheme.typography.bodySmall)
 }

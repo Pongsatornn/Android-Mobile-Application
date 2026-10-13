@@ -5,12 +5,12 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.example.studentmanagementapp.data.local.StudentEntity
+import com.example.studentmanagementapp.domain.model.Student
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun StudentDetailScreen(
-    student: StudentEntity,
+    student: Student,
     onBack: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit
@@ -34,12 +34,12 @@ fun StudentDetailScreen(
                     Modifier.padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    DetailRow("Local ID", student.localId.toString())
+                    DetailRow("Local ID", student.id.toString())
                     DetailRow("Server ID", student.serverId?.toString() ?: "-")
                     DetailRow("Code", student.studentCode)
                     DetailRow("Name", student.name)
                     DetailRow("Major", student.major)
-                    DetailRow("Sync", student.syncStatus)
+                    DetailRow("Sync", student.syncState.name)
                 }
             }
             Spacer(Modifier.height(16.dp))

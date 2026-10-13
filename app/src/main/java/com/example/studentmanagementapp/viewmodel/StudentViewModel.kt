@@ -4,34 +4,58 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider.AndroidViewModelFactory.Companion.APPLICATION_KEY
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.viewmodel.initializer
-import androidx.lifecycle.viewmodel.viewModelFactory
-import com.example.studentmanagementapp.StudentManagementApplication
-import com.example.studentmanagementapp.data.local.StudentEntity
-import com.example.studentmanagementapp.data.local.SyncStatus
-import com.example.studentmanagementapp.data.repository.StudentRepository
+import com.example.studentmanagementapp.domain.model.Student
+import com.example.studentmanagementapp.domain.model.SyncState
+import com.example.studentmanagementapp.domain.usecase.AddStudentUseCase
+import com.example.studentmanagementapp.domain.usecase.DeleteStudentUseCase
+import com.example.studentmanagementapp.domain.usecase.GetStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.RefreshStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.SyncStudentsUseCase
+import com.example.studentmanagementapp.domain.usecase.UpdateStudentUseCase
+import com.example.studentmanagementapp.worker.SyncScheduler
+import androidx.work.WorkInfo
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import retrofit2.HttpException
+import javax.inject.Inject
 
-class StudentViewModel(
-    private val repository: StudentRepository
+// Lab 6: @HiltViewModel + @Inject constructor -> Hilt ส่ง Dependency มาให้ ไม่ต้องเขียน Factory เองแล้ว
+// Lab 7: รับ Use Case แทน Repository โดยตรง -> ViewModel ไม่รู้จัก Room / Retrofit
+@HiltViewModel
+class StudentViewModel @Inject constructor(
+    private val getStudents: GetStudentsUseCase,
+    private val refreshStudents: RefreshStudentsUseCase,
+    private val addStudent: AddStudentUseCase,
+    private val updateStudent: UpdateStudentUseCase,
+    private val deleteStudentUseCase: DeleteStudentUseCase,
+    private val syncStudentsUseCase: SyncStudentsUseCase,
+    // Lab 5: สั่งงานผ่าน SyncScheduler -> WorkManager -> SyncWorker
+    private val syncScheduler: SyncScheduler
 ) : ViewModel() {
 
     // ---------- State ----------
 
     // Lab 4: รายชื่อมาจาก Room ผ่าน Flow (อัปเดตเองเมื่อ Room เปลี่ยน แม้ออฟไลน์)
-    val students: StateFlow<List<StudentEntity>> =
-        repository.observeStudents()
+    // Lab 7: ได้เป็น Domain Model (Student) ผ่าน GetStudentsUseCase
+    val students: StateFlow<List<Student>> =
+        getStudents()
             .stateIn(
                 scope = viewModelScope,
                 started = SharingStarted.WhileSubscribed(5000),
                 initialValue = emptyList()
             )
+
+    // สถานะงาน Sync in Background (ENQUEUED = รอ Network, RUNNING = กำลังทำ)
+    val backgroundSync: StateFlow<WorkInfo.State?> =
+        syncScheduler.observeSyncNow().stateIn(
+            scope = viewModelScope,
+            started = SharingStarted.WhileSubscribed(5000),
+            initialValue = null
+        )
 
     var isLoading by mutableStateOf(false)
         private set
@@ -56,7 +80,7 @@ class StudentViewModel(
         private set
 
     // กรองรายการ (ค้นจาก code / name / major)
-    fun filter(list: List<StudentEntity>): List<StudentEntity> {
+    fun filter(list: List<Student>): List<Student> {
         val q = searchQuery.trim()
         if (q.isEmpty()) return list
         return list.filter {
@@ -74,7 +98,7 @@ class StudentViewModel(
             isLoading = true
             errorMessage = null
             try {
-                isOnline = repository.refresh()
+                isOnline = refreshStudents()
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
                 errorMessage = "ไม่สามารถโหลดข้อมูลได้"
@@ -90,14 +114,17 @@ class StudentViewModel(
 
     // Add -> ลง Room เป็น PENDING ทันที (ทำได้แม้ออฟไลน์)
     // Edit -> ดูใน Repository ว่าต้องออนไลน์หรือไม่
-    fun saveStudent(student: StudentEntity?, code: String, name: String, major: String) {
+    fun saveStudent(student: Student?, code: String, name: String, major: String) {
         viewModelScope.launch {
             errorMessage = null
             try {
                 if (student == null) {
-                    repository.addStudent(code.trim(), name.trim(), major.trim())
+                    addStudent(code, name, major)
+                    // มีรายการ PENDING ใหม่ -> ฝากงานไว้กับ WorkManager
+                    // ถ้าออฟไลน์ งานจะรอแล้ว Sync เองเมื่อ Network กลับมา
+                    syncScheduler.syncNow()
                 } else {
-                    repository.updateStudent(student, code.trim(), name.trim(), major.trim())
+                    updateStudent(student, code, name, major)
                 }
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
@@ -106,11 +133,11 @@ class StudentViewModel(
         }
     }
 
-    fun deleteStudent(student: StudentEntity) {
+    fun deleteStudent(student: Student) {
         viewModelScope.launch {
             errorMessage = null
             try {
-                repository.deleteStudent(student)
+                deleteStudentUseCase(student)
             } catch (e: Exception) {
                 if (isUnauthorized(e)) return@launch
                 errorMessage = "ลบข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
@@ -125,10 +152,10 @@ class StudentViewModel(
             errorMessage = null
             syncMessage = null
             try {
-                val result = repository.syncPending()
+                val result = syncStudentsUseCase()
                 isOnline = result.isOnline
                 if (result.isOnline) {
-                    isOnline = repository.refresh()
+                    isOnline = refreshStudents()
                 }
                 syncMessage = when {
                     !result.isOnline -> "ออฟไลน์อยู่ ข้อมูลยังเป็น PENDING ลองใหม่เมื่อมีเน็ต"
@@ -145,8 +172,14 @@ class StudentViewModel(
         }
     }
 
-    fun pendingCount(list: List<StudentEntity>): Int =
-        list.count { it.syncStatus != SyncStatus.SYNCED }
+    // Lab 5: ปุ่ม Sync in Background
+    fun syncInBackground() {
+        syncMessage = null
+        syncScheduler.syncNow()
+    }
+
+    fun pendingCount(list: List<Student>): Int =
+        list.count { it.syncState != SyncState.SYNCED }
 
     fun onSessionExpiredHandled() {
         sessionExpired = false
@@ -158,15 +191,5 @@ class StudentViewModel(
             return true
         }
         return false
-    }
-
-    // ViewModel มี constructor parameter -> ต้องมี Factory บอกวิธีสร้าง
-    companion object {
-        val Factory = viewModelFactory {
-            initializer {
-                val app = checkNotNull(this[APPLICATION_KEY]) as StudentManagementApplication
-                StudentViewModel(app.container.studentRepository)
-            }
-        }
     }
 }

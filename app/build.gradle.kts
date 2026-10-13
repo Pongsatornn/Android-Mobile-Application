@@ -2,6 +2,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -34,6 +35,10 @@ android {
     buildFeatures {
         compose = true
     }
+    testOptions {
+        // Unit Test รันบน JVM: ถ้าโค้ดเผลอเรียก Android API ให้คืนค่า default แทนการ throw
+        unitTests.isReturnDefaultValues = true
+    }
 }
 
 dependencies {
@@ -51,7 +56,17 @@ dependencies {
     ksp(libs.androidx.room.compiler)
     implementation(libs.retrofit)
     implementation(libs.retrofit.converter.gson)
+    implementation(libs.androidx.work.runtime.ktx)
+
+    // Lab 6: Hilt (ใช้ KSP แทน kapt เพราะโปรเจกต์ใช้ KSP กับ Room อยู่แล้ว)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
+    implementation(libs.androidx.hilt.lifecycle.viewmodel.compose)   // hiltViewModel()
+    implementation(libs.androidx.hilt.work)                          // @HiltWorker
+    ksp(libs.androidx.hilt.compiler)
     testImplementation(libs.junit)
+    // Lab 7: runTest / Dispatchers.setMain สำหรับทดสอบ suspend fun, Flow และ ViewModel
+    testImplementation(libs.kotlinx.coroutines.test)
     androidTestImplementation(platform(libs.androidx.compose.bom))
     androidTestImplementation(libs.androidx.compose.ui.test.junit4)
     androidTestImplementation(libs.androidx.espresso.core)
