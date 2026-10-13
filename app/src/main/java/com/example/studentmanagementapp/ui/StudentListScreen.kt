@@ -26,7 +26,8 @@ fun StudentListScreen(
                 title = { Text("Student Management") },
                 actions = {
                     OnlineStatus(isOnline = viewModel.isOnline)
-                    TextButton(onClick = viewModel::loadStudents) { Text("Reload") }
+                    // Exercise 2: Refresh -> GET /students
+                    TextButton(onClick = viewModel::loadStudents) { Text("Refresh") }
                 }
             )
         },

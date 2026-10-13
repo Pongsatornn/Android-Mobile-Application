@@ -74,32 +74,32 @@ class StudentViewModel(
         searchQuery = query
     }
 
-    // id = null -> เพิ่มใหม่ (Exercise 1), มี id -> แก้ไข (Bonus Edit)
+    // id = null -> POST /students, มี id -> PUT /students/{id}
     fun saveStudent(id: Int?, code: String, name: String, major: String) {
         viewModelScope.launch {
+            errorMessage = null
             try {
-                repository.saveStudent(
-                    Student(
-                        id = id ?: 0,
-                        studentCode = code.trim(),
-                        name = name.trim(),
-                        major = major.trim()
-                    )
-                )
-                students = repository.getLocalStudents()
+                if (id == null) {
+                    repository.addStudent(code.trim(), name.trim(), major.trim())
+                } else {
+                    repository.updateStudent(id, code.trim(), name.trim(), major.trim())
+                }
+                loadStudents()
             } catch (e: Exception) {
-                errorMessage = "บันทึกข้อมูลไม่สำเร็จ"
+                errorMessage = "บันทึกข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
             }
         }
     }
 
-    fun deleteStudent(student: Student) {          // Exercise 2
+    // DELETE /students/{id}
+    fun deleteStudent(student: Student) {
         viewModelScope.launch {
+            errorMessage = null
             try {
                 repository.deleteStudent(student)
-                students = repository.getLocalStudents()
+                loadStudents()
             } catch (e: Exception) {
-                errorMessage = "ลบข้อมูลไม่สำเร็จ"
+                errorMessage = "ลบข้อมูลไม่สำเร็จ (เชื่อมต่อ Server ไม่ได้)"
             }
         }
     }

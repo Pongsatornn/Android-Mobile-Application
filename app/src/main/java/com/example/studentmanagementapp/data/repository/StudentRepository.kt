@@ -2,6 +2,7 @@ package com.example.studentmanagementapp.data.repository
 
 import com.example.studentmanagementapp.data.local.StudentDao
 import com.example.studentmanagementapp.data.remote.StudentApi
+import com.example.studentmanagementapp.data.remote.StudentCreateRequest
 import com.example.studentmanagementapp.data.remote.toStudent
 import com.example.studentmanagementapp.model.Student
 
@@ -16,21 +17,34 @@ class StudentRepository(
     private val api: StudentApi
 ) {
 
-    // Offline-First: ลอง API -> สำเร็จก็บันทึกลง Room -> อ่านจาก Room เสมอ
+    // Offline-First:
+    // Online  -> เรียก API -> ได้ข้อมูล Server -> บันทึก Room -> แสดงผล
+    // Offline -> API Error -> อ่าน Room -> แสดงข้อมูลล่าสุดที่มี
     suspend fun getStudents(): StudentResult {
         return try {
             val remote = api.getStudents().map { it.toStudent() }
-            dao.insertAll(remote)
+            dao.replaceAll(remote)
             StudentResult(dao.getAllStudents(), isOnline = true)
         } catch (e: Exception) {
-            // ไม่มีเน็ต / API ล่ม -> ใช้ข้อมูลในเครื่อง
             StudentResult(dao.getAllStudents(), isOnline = false)
         }
     }
 
-    suspend fun getLocalStudents(): List<Student> = dao.getAllStudents()
+    // การเขียนข้อมูลต้องผ่าน Server (PostgreSQL เป็นข้อมูลหลัก)
+    // สำเร็จแล้วค่อยอัปเดต Room ให้ตรงกัน ถ้าออฟไลน์จะ throw ให้ ViewModel แจ้ง error
 
-    suspend fun saveStudent(student: Student) = dao.insertStudent(student)
+    suspend fun addStudent(code: String, name: String, major: String) {
+        val created = api.createStudent(StudentCreateRequest(code, name, major))
+        dao.insertStudent(created.toStudent())
+    }
 
-    suspend fun deleteStudent(student: Student) = dao.deleteStudent(student)
+    suspend fun updateStudent(id: Int, code: String, name: String, major: String) {
+        val updated = api.updateStudent(id, StudentCreateRequest(code, name, major))
+        dao.insertStudent(updated.toStudent())
+    }
+
+    suspend fun deleteStudent(student: Student) {
+        api.deleteStudent(student.id)
+        dao.deleteStudent(student)
+    }
 }

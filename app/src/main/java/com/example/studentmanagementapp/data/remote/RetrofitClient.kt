@@ -5,8 +5,9 @@ import retrofit2.converter.gson.GsonConverterFactory
 
 object RetrofitClient {
 
-    // API สำหรับทดลอง — เปลี่ยนเป็น API ของตัวเองได้
-    private const val BASE_URL = "https://jsonplaceholder.typicode.com/"
+    // 10.0.2.2 = เครื่อง PC ที่รัน Emulator อยู่ (FastAPI port 8000)
+    // ถ้าใช้มือถือจริง ให้เปลี่ยนเป็น IP ของ PC เช่น "http://192.168.1.100:8000/"
+    private const val BASE_URL = "http://10.0.2.2:8000/"
 
     val api: StudentApi by lazy {
         Retrofit.Builder()
