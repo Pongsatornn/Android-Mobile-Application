@@ -30,7 +30,9 @@ class StepCounterManager(
     var steps by mutableIntStateOf(0)
         private set
 
+    // เรียกซ้ำได้ (เช่น หลังได้ permission) — unregister ก่อนเพื่อไม่ให้ลงทะเบียนซ้อน
     fun start() {
+        sensorManager.unregisterListener(this)
         stepSensor?.let {
             sensorManager.registerListener(
                 this,

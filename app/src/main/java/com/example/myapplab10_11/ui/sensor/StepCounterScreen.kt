@@ -16,7 +16,6 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -31,10 +30,10 @@ import androidx.core.content.ContextCompat
 import com.example.myapplab10_11.sensor.StepCounterManager
 import java.text.NumberFormat
 
-private const val STEP_GOAL = 10_000
+const val STEP_GOAL = 10_000
 
 @Composable
-fun StepCounterScreen() {
+fun StepCounterScreen(manager: StepCounterManager) {
     val context = LocalContext.current
 
     // Android 10 (API 29) ขึ้นไปต้องขอ ACTIVITY_RECOGNITION ตอน runtime ด้วย
@@ -54,8 +53,11 @@ fun StepCounterScreen() {
             hasPermission = granted
         }
 
-    LaunchedEffect(Unit) {
-        if (!hasPermission) {
+    LaunchedEffect(hasPermission) {
+        if (hasPermission) {
+            // manager ถูกสร้างระดับแอป (ใช้ร่วมกับ Home) — เริ่มใหม่หลังได้ permission
+            manager.start()
+        } else {
             permissionLauncher.launch(Manifest.permission.ACTIVITY_RECOGNITION)
         }
     }
@@ -79,17 +81,6 @@ fun StepCounterScreen() {
             }
         }
         return
-    }
-
-    val manager = remember {
-        StepCounterManager(context)
-    }
-
-    DisposableEffect(Unit) {
-        manager.start()
-        onDispose {
-            manager.stop()
-        }
     }
 
     val steps = manager.steps
